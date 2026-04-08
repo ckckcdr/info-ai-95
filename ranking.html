@@ -1,0 +1,373 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Target District Ranking — Priority List</title>
+    <meta name="description" content="จัดอันดับเขตเลือกตั้งตามเกณฑ์ margin, turnout, rank เพื่อวิเคราะห์เป้าหมายการเลือกตั้ง 2569">
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Noto+Sans+Thai:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+
+    <style>
+        :root {
+            --party-prachachon: #f97316;
+            --party-pheuthai: #ef4444;
+            --party-bhumjaithai: #1e3a8a;
+            --party-klatham: #84cc16;
+            --party-palangpracharath: #166534;
+            --party-democrat: #38bdf8;
+            --party-ruamthai: #db2777;
+            --party-prachachat: #b45309;
+            --party-thaisangthai: #9333ea;
+            --party-default: #94a3b8;
+            --bg: #ffffff;
+            --surface: #f8fafc;
+            --surface2: #f1f5f9;
+            --text: #0f172a;
+            --text-dim: #64748b;
+            --border: #e2e8f0;
+            --accent: #3b82f6;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            font-family: 'Noto Sans Thai', 'Inter', sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+        }
+
+        /* ── Top Nav ────────────────────────────────────────────── */
+        .top-bar {
+            background: var(--surface);
+            border-bottom: 1px solid var(--border);
+            padding: 12px 24px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            backdrop-filter: blur(12px);
+        }
+
+        .top-bar h1 {
+            font-size: 1.15rem;
+            font-weight: 800;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .top-bar a {
+            color: var(--accent);
+            font-size: 0.85rem;
+            text-decoration: none;
+            font-weight: 600;
+            transition: opacity 0.2s;
+        }
+        .top-bar a:hover { opacity: 0.75; }
+
+        /* ── Controls ──────────────────────────────────────────── */
+        .controls {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            align-items: center;
+            padding: 16px 24px;
+            background: var(--surface);
+            border-bottom: 1px solid rgba(71,85,105,0.5);
+        }
+
+        .control-group {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .control-group label {
+            font-size: 0.78rem;
+            color: var(--text-dim);
+            font-weight: 600;
+        }
+
+        .control-group select {
+            font-family: inherit;
+            font-size: 0.82rem;
+            padding: 6px 12px;
+            border-radius: 6px;
+            border: 1px solid var(--border);
+            background: var(--surface2);
+            color: var(--text);
+            cursor: pointer;
+            outline: none;
+        }
+        .control-group select:focus {
+            border-color: var(--accent);
+            box-shadow: 0 0 0 2px rgba(59,130,246,0.25);
+        }
+
+        .stat-pills {
+            display: flex;
+            gap: 8px;
+            margin-left: auto;
+        }
+
+        .stat-pill {
+            background: var(--surface2);
+            border: 1px solid var(--border);
+            border-radius: 20px;
+            padding: 5px 14px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .stat-pill .num { color: #1d4ed8; font-weight: 800; }
+
+        /* ── Main list container ───────────────────────────────── */
+        .list-container {
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 20px 24px 40px;
+        }
+
+        .section-divider {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin: 24px 0 14px;
+        }
+
+        .section-divider .icon {
+            width: 32px;
+            height: 32px;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1rem;
+        }
+
+        .section-divider .icon.attack { background: #fee2e2; }
+        .section-divider .icon.defend { background: #dcfce7; }
+        .section-divider .icon.deep   { background: #f1f5f9; }
+
+        .section-divider h2 {
+            font-size: 0.95rem;
+            font-weight: 700;
+        }
+
+        .section-divider .count {
+            color: var(--text-dim);
+            font-size: 0.78rem;
+            margin-left: auto;
+        }
+
+        /* ── Ranking Card ─────────────────────────────────────── */
+        .rank-card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 14px 18px;
+            margin-bottom: 10px;
+            transition: all 0.2s ease;
+            cursor: default;
+        }
+        .rank-card:hover {
+            border-color: var(--accent);
+            transform: translateY(-1px);
+            box-shadow: 0 4px 16px rgba(0,0,0,0.08);
+        }
+
+        .rank-card-top {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 10px;
+        }
+
+        .rank-number {
+            width: 36px;
+            height: 36px;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.85rem;
+            font-weight: 800;
+            flex-shrink: 0;
+        }
+
+        .rank-number.attack { background: #fee2e2; color: #dc2626; }
+        .rank-number.defend { background: #dcfce7; color: #16a34a; }
+        .rank-number.deep   { background: #f1f5f9; color: #64748b; }
+
+        .rank-info { flex: 1; min-width: 0; }
+
+        .rank-title {
+            font-weight: 700;
+            font-size: 0.92rem;
+            margin-bottom: 2px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .rank-subtitle {
+            font-size: 0.72rem;
+            color: var(--text-dim);
+        }
+
+        .rank-badges {
+            display: flex;
+            gap: 6px;
+            flex-shrink: 0;
+            flex-wrap: wrap;
+            justify-content: flex-end;
+        }
+
+        .badge {
+            font-size: 0.65rem;
+            padding: 3px 8px;
+            border-radius: 6px;
+            font-weight: 700;
+            white-space: nowrap;
+        }
+        .badge-attack  { background: #fee2e2; color: #dc2626; }
+        .badge-defend  { background: #dcfce7; color: #16a34a; }
+        .badge-deep    { background: #f1f5f9; color: #64748b; }
+        .badge-margin  { background: #dbeafe; color: #1d4ed8; }
+        .badge-turnout { background: #fef9c3; color: #a16207; }
+
+        /* ── Horizontal bar pair ──────────────────────────────── */
+        .bar-pair { display: flex; flex-direction: column; gap: 5px; }
+
+        .bar-row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .bar-label {
+            width: 72px;
+            font-size: 0.7rem;
+            font-weight: 600;
+            color: var(--text-dim);
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            text-align: right;
+        }
+
+        .bar-track {
+            flex: 1;
+            height: 20px;
+            background: #e2e8f0;
+            border-radius: 4px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .bar-fill {
+            height: 100%;
+            border-radius: 4px;
+            position: absolute;
+            left: 0; top: 0;
+            transition: width 0.6s cubic-bezier(0.4,0,0.2,1);
+            display: flex;
+            align-items: center;
+            justify-content: flex-end;
+            padding-right: 6px;
+            font-size: 0.65rem;
+            font-weight: 700;
+            color: #fff;
+            text-shadow: 0 1px 3px rgba(0,0,0,0.4);
+        }
+
+        .bar-votes-label {
+            width: 60px;
+            text-align: right;
+            font-size: 0.72rem;
+            font-weight: 600;
+            color: var(--text-dim);
+        }
+
+        /* ── Loading ──────────────────────────────────────────── */
+        #loading {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+            min-height: 60vh;
+        }
+        .spinner {
+            width: 28px; height: 28px;
+            border: 3px solid var(--surface2);
+            border-top-color: var(--accent);
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        /* ── Responsive ───────────────────────────────────────── */
+        @media (max-width: 640px) {
+            .controls { flex-direction: column; align-items: stretch; }
+            .stat-pills { margin-left: 0; }
+            .rank-card-top { flex-wrap: wrap; }
+            .rank-badges { justify-content: flex-start; }
+        }
+    </style>
+</head>
+<body>
+    <!-- Top Bar -->
+    <div class="top-bar">
+        <h1>🎯 Target District Ranking</h1>
+        <a href="index.html">← กลับแผนที่</a>
+    </div>
+
+    <!-- Controls -->
+    <div class="controls" id="controls" style="display:none;">
+        <div class="control-group">
+            <label>ภาค:</label>
+            <select id="focus-region">
+                <option value="all">ทั่วประเทศ</option>
+                <option value="north">ภาคเหนือ</option>
+                <option value="northeast">ภาคอีสาน</option>
+                <option value="central">ภาคกลาง</option>
+                <option value="east">ภาคตะวันออก</option>
+                <option value="south">ภาคใต้</option>
+                <option value="bangkok">กรุงเทพฯ</option>
+            </select>
+        </div>
+        <div class="control-group">
+            <label>เรียงจาก:</label>
+            <select id="sort-order">
+                <option value="easiest">ง่ายสุด → ยากสุด</option>
+                <option value="hardest">ยากสุด → ง่ายสุด</option>
+            </select>
+        </div>
+        <div class="stat-pills" id="stat-pills"></div>
+    </div>
+
+    <!-- Loading -->
+    <div id="loading">
+        <div class="spinner"></div>
+        <span style="color: var(--text-dim); font-size: 0.9rem;">กำลังวิเคราะห์ข้อมูลเขตเลือกตั้ง...</span>
+    </div>
+
+    <!-- Ranking List -->
+    <div class="list-container" id="list-container" style="display: none;"></div>
+
+    <script src="data.js"></script>
+    <script src="ranking.js"></script>
+</body>
+</html>

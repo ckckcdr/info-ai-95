@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="th">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>2026 Thailand Election Tile Map</title>
+
+    <!-- Google Fonts: Inter & Noto Sans Thai -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Noto+Sans+Thai:wght@400;500;600;700&display=swap"
+        rel="stylesheet">
+
+    <!-- PapaParse -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+
+    <!-- Panzoom for zooming/panning -->
+    <script src="https://cdn.jsdelivr.net/npm/@panzoom/panzoom/dist/panzoom.min.js"></script>
+
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+
+    <header>
+        <h1>แผนที่กระเบื้องเลือกตั้ง (Tile Map)</h1>
+        <p class="subtitle">การกระจายตัวของที่นั่ง สส. ทั่วประเทศไทย สำหรับการเลือกตั้ง 2569</p>
+    </header>
+
+    <div id="loading">
+        <div class="spinner"></div>
+        <span>กำลังประมวลผลข้อมูล...</span>
+    </div>
+
+    <!-- Toggle Controls -->
+    <div class="view-toggle" id="view-toggle" style="display:none;">
+        <button id="btn-constituency" class="toggle-btn active" onclick="setView('constituency')">
+            แบ่งเขต
+        </button>
+        <button id="btn-partylist" class="toggle-btn" onclick="setView('partylist')">
+            Partylist (บัญชีรายชื่อ)
+        </button>
+    </div>
+
+    <!-- Filter Chips -->
+    <div class="filter-bar" id="filter-bar" style="display:none; align-items:center;">
+        <span class="filter-label" style="margin-right:2px;">🔍 Highlight:</span>
+        <span style="font-size: 0.85rem; color: #64748b; font-weight: 600;">พรรคประชาชนเทียบที่ 1 (หรือชนะที่ 2)
+            สูสีน้อยกว่า</span>
+        <select id="margin-slicer" onchange="toggleMarginFilter(this.value)" class="filter-chip"
+            style="padding: 4px 28px 4px 12px; margin-left: 4px; appearance: auto; cursor: pointer;">
+            <option value="">-- เลือก % --</option>
+            <option value="0.01">1%</option>
+            <option value="0.03">3%</option>
+            <option value="0.05">5%</option>
+            <option value="0.10">10%</option>
+        </select>
+        <button id="filter-clear" class="filter-chip filter-clear" onclick="clearFilter()"
+            style="display:none; margin-left: 4px;">
+            ✕ ล้าง filter
+        </button>
+    </div>
+
+    <!-- Main Layout: Map (left) + Ranking Sidebar (right) -->
+    <div class="main-layout" id="main-layout" style="display: none;">
+        <div class="map-wrapper" id="map-wrapper">
+            <button id="reset-map-btn" class="filter-chip" style="position: absolute; top: 16px; right: 16px; z-index: 100; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+                🔄 Reset แผนที่
+            </button>
+            <div class="map-container" id="map-container">
+                <!-- Provinces will be injected here -->
+            </div>
+        </div>
+
+        <!-- Ranking Sidebar -->
+        <div class="ranking-sidebar" id="ranking-sidebar">
+            <div class="sidebar-header">
+                <h3>🎯 เป้าหมายเขต</h3>
+                <div class="sidebar-controls">
+                    <select id="sidebar-sort" class="sidebar-select">
+                        <option value="easiest">ง่ายสุด →</option>
+                        <option value="hardest">ยากสุด →</option>
+                    </select>
+                    <select id="sidebar-region" class="sidebar-select">
+                        <option value="all">ทั่วประเทศ</option>
+                        <option value="north">ภาคเหนือ</option>
+                        <option value="northeast">ภาคอีสาน</option>
+                        <option value="central">ภาคกลาง</option>
+                        <option value="east">ภาคตะวันออก</option>
+                        <option value="south">ภาคใต้</option>
+                        <option value="bangkok">กรุงเทพฯ</option>
+                    </select>
+                </div>
+            </div>
+            <div class="sidebar-list" id="sidebar-list">
+                <!-- Top 10 cards injected here -->
+            </div>
+            <a href="ranking.html" class="sidebar-more-link">ดูทั้งหมด → Priority Targets</a>
+        </div>
+    </div>
+
+    <!-- The Silent Gap Section -->
+    <div class="gap-section" id="gap-section">
+        <div class="gap-header"
+            style="width: 100%; border-bottom: 2px solid #e2e8f0; padding-bottom: 12px; margin-bottom: 24px; margin-top: 40px; text-align: left;">
+            <h2 style="font-size: 1.5rem; color: #0f172a; display: flex; align-items: center; gap: 8px;">
+                <span style="font-size: 1.8rem;"></span>The Silent Gap (ช่องว่างคะแนนเขต vs บัญชีรายชื่อ)
+            </h2>
+            <p style="color: #64748b; font-size: 0.95rem; margin-top: 6px;">เขตที่คนเลือกพรรค (ชนะบัญชีรายชื่อ) แต่<span
+                    style="color:#ef4444; font-weight:700;">ไม่เอาคนทำงานพื้นที่</span> (แพ้ สส. เขต) -
+                ควรเปลี่ยนหรือดันตัวผู้สมัคร</p>
+        </div>
+
+        <div class="gap-layout">
+            <div class="waffle-panel" id="waffle-panel">
+                <div class="waffle-grid" id="waffle-grid">
+                    <!-- Waffle blocks injected here -->
+                </div>
+                <div class="waffle-summary" id="waffle-summary"></div>
+            </div>
+
+            <!-- Gap Sidebar -->
+            <div class="ranking-sidebar" id="gap-sidebar">
+                <div class="sidebar-header"
+                    style="background: linear-gradient(135deg, #f97316, #ea580c); color: white;">
+                    <h3 style="color: white; border: none; padding: 0;">⚠️ ความเสียหายสูงสุด</h3>
+                    <div class="sidebar-controls">
+                        <select id="gap-region" class="sidebar-select"
+                            style="background: rgba(255,255,255,0.2); color: white; border: 1px solid rgba(255,255,255,0.3);">
+                            <option value="all" style="color: #0f172a;">ทั่วประเทศ</option>
+                            <option value="north" style="color: #0f172a;">ภาคเหนือ</option>
+                            <option value="northeast" style="color: #0f172a;">ภาคอีสาน</option>
+                            <option value="central" style="color: #0f172a;">ภาคกลาง</option>
+                            <option value="east" style="color: #0f172a;">ภาคตะวันออก</option>
+                            <option value="south" style="color: #0f172a;">ภาคใต้</option>
+                            <option value="bangkok" style="color: #0f172a;">กรุงเทพฯ</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="sidebar-list" id="gap-sidebar-list">
+                    <!-- Top 10 Gap cards injected here -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="data.js"></script>
+    <script src="app.js"></script>
+</body>
+
+</html>
